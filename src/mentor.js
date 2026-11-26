@@ -1,17 +1,19 @@
 import { styles } from './styles.js';
+import { noteStyles } from './note-styles.js';
+import { createObsidianNote } from './note.js';
 
 const trigger = document.createElement('div');
 trigger.id = 'cm-trigger';
 document.body.appendChild(trigger);
 
 const styleTag = document.createElement('style');
-styleTag.textContent = styles;
+styleTag.textContent = styles + '\n' + noteStyles;
 document.head.appendChild(styleTag);
 
 const drawer = document.createElement('aside');
 drawer.id = 'cm-drawer';
 drawer.innerHTML = /*html*/ `
-  <div class="cm-edge-handle" title="Кликнуть или потянуть вправо, чтобы закрыть"></div>
+  <div class="cm-edge-handle" title="Кликнуть или потянуть вправо, чтобы закрыть (Ё / Esc)"></div>
   <header class="cm-header">
     <span class="cm-title">Code Mentor</span>
   </header>
@@ -20,9 +22,9 @@ drawer.innerHTML = /*html*/ `
     <section class="cm-note">
       <div class="cm-note-head">
         <span class="cm-note-label">Конспект</span>
-        <button class="cm-copy-btn" type="button" title="Скопировать в Obsidian">Copy</button>
+        <button class="cm-copy-btn" type="button" title="Скопировать Markdown в Obsidian">Copy</button>
       </div>
-      <div class="cm-note-content" contenteditable="true" spellcheck="false">Здесь появится твой конспект...</div>
+      <div class="cm-note-content" tabindex="0"></div>
     </section>
 
     <div class="cm-resizer" title="Тянуть — изменить размер • Двойной клик — сбросить"></div>
@@ -57,6 +59,10 @@ const composer = drawer.querySelector('.cm-composer');
 const input = drawer.querySelector('.cm-input');
 const sendBtn = drawer.querySelector('.cm-send');
 
+const starterNote = `[[js]]\n## Что это\n\n##### Объект - это структура данных, которая хранит значения в виде пар \`ключ:\` \`значение\`\n\n## Когда использовать\n\n> [!tip]\n>\n> - Когда нужно хранить связанные данные (пользователь, товар, сборка)\n> - Когда нужно группировать свойства и методы\n> - Когда нужно передавать данные между функциями\n\n#### Создание объекта\n\`\`\`js\nlet user = {} // тоже объект\n\`\`\`\n---\n\`\`\`js\nlet user = {\n  name: 'Dima',\n  'age': 15, // можно оборачивать ключ в ковычки\n}\n\`\`\``;
+
+const note = createObsidianNote(noteContent, starterNote);
+
 let closeMorphTimer = null;
 
 const setDrawerOpen = (isOpen) => {
@@ -68,8 +74,12 @@ const setDrawerOpen = (isOpen) => {
     drawer.classList.add('open');
     trigger.classList.add('is-hidden');
   } else {
+    note.closeEditor();
     drawer.classList.add('is-closing');
     drawer.classList.remove('open');
+    if (drawer.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
     closeMorphTimer = setTimeout(() => {
       trigger.classList.remove('is-hidden');
       drawer.classList.remove('is-closing');
@@ -77,9 +87,56 @@ const setDrawerOpen = (isOpen) => {
   }
 };
 
+let lastBackquoteTime = 0;
+
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && drawer.classList.contains('open')) {
-    setDrawerOpen(false);
+  if (e.key === 'Escape') {
+    if (note.isEditing()) {
+      e.preventDefault();
+      note.closeEditor();
+      return;
+    }
+    if (drawer.classList.contains('open')) {
+      setDrawerOpen(false);
+    }
+    return;
+  }
+
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== 'Backquote') {
+    return;
+  }
+
+  const active = document.activeElement;
+  const isTyping =
+    active &&
+    (active.tagName === 'INPUT' ||
+      active.tagName === 'TEXTAREA' ||
+      active.isContentEditable);
+
+  if (!isTyping) {
+    e.preventDefault();
+    setDrawerOpen(!drawer.classList.contains('open'));
+    return;
+  }
+
+  const now = performance.now();
+  if (now - lastBackquoteTime < 320) {
+    e.preventDefault();
+    lastBackquoteTime = 0;
+
+    if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') {
+      const pos = active.selectionStart || 0;
+      if (pos > 0 && /[ёЁ`~]/.test(active.value[pos - 1])) {
+        active.value = active.value.slice(0, pos - 1) + active.value.slice(pos);
+        active.setSelectionRange(pos - 1, pos - 1);
+      }
+    } else if (active.isContentEditable) {
+      document.execCommand('delete', false, null);
+    }
+
+    setDrawerOpen(!drawer.classList.contains('open'));
+  } else {
+    lastBackquoteTime = now;
   }
 });
 
@@ -207,7 +264,7 @@ resizer.addEventListener('dblclick', () => {
 });
 
 copyBtn.addEventListener('click', () => {
-  navigator.clipboard.writeText(noteContent.innerText);
+  navigator.clipboard.writeText(note.getMarkdown());
   copyBtn.textContent = 'Copied';
   setTimeout(() => (copyBtn.textContent = 'Copy'), 1200);
 });
@@ -230,15 +287,16 @@ const sendMessage = () => {
   body.scrollTop = body.scrollHeight;
 
   setTimeout(() => {
-    noteContent.textContent = `# Тема: ${text}\n\n- Основная мысль зафиксирована в верхнем блоке\n- Текст можно редактировать прямо кликом внутри`;
+    note.setMarkdown(
+      `[[js]]\n## ${text}\n\n> [!tip]\n> - Основные тезисы оформлены в стиле **Obsidian**\n> - Кликни в любую строку — раскроется только она\n\n---\n\`\`\`js\nconst example = {\n  topic: '${text}',\n  ready: true\n}\n\`\`\``
+    );
 
     const aiMsg = document.createElement('div');
     aiMsg.className = 'cm-msg-ai';
     aiMsg.innerHTML = `
       <p>Обновил конспект сверху по запросу <strong>«${text}»</strong>.</p>
       <ul>
-        <li>Используй <code>contenteditable</code>, чтобы поправить любую строчку руками.</li>
-        <li>Нажми <code>Copy</code> справа сверху для переноса в Obsidian.</li>
+        <li>Модуль конспекта работает из <code>src/note.js</code> и <code>src/note-styles.js</code>.</li>
       </ul>
     `;
     body.appendChild(aiMsg);

@@ -3,7 +3,7 @@ export const styles = /*css*/ `
     position: fixed;
     top: 0;
     right: 0;
-    width: 24px;
+    width: 32px;
     height: 100vh;
     z-index: 999999;
     cursor: pointer;
@@ -21,7 +21,13 @@ export const styles = /*css*/ `
     background: rgba(148, 163, 184, 0.35);
     backdrop-filter: blur(8px);
     box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.3);
-    transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    transition:
+      width 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      height 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      background-color 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.5s ease,
+      transform 0.3s ease;
   }
 
   #cm-trigger.is-hidden::after {
@@ -31,7 +37,6 @@ export const styles = /*css*/ `
   #cm-trigger:hover::after {
     width: 5.3px;
     height: 91px;
-    transform: translateX(-2.1px);
     background: rgba(148, 163, 184, 0.56);
     box-shadow: 
       inset 0 0 0 0.5px rgba(255, 255, 255, 0.6),
@@ -39,19 +44,20 @@ export const styles = /*css*/ `
   }
 
   #cm-trigger:active::after {
-    transform: translateX(-2.1px) scaleY(0.958);
+    transform: scaleY(0.96);
     background: rgba(148, 163, 184, 0.68);
-    transition-duration: 0.12s;
+    transition-duration: 0.18s;
   }
 
   #cm-drawer {
     --cm-bg: linear-gradient(180deg, rgba(28, 28, 30, 0.96) 0%, rgba(19, 19, 21, 0.98) 100%);
     --cm-surface: rgba(255, 255, 255, 0.04);
     --cm-border: rgba(255, 255, 255, 0.08);
-    --cm-text-primary: #E2E8F0;
-    --cm-text-secondary: #CBD5E1;
-    --cm-accent: #818CF8;
-    --cm-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --cm-text-primary: #DADADA;
+    --cm-text-secondary: #B4B4B8;
+    --cm-accent: #8A5CF5;
+    --cm-font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    --cm-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
     position: fixed;
     top: 12px;
@@ -84,15 +90,16 @@ export const styles = /*css*/ `
   .cm-edge-handle {
     position: absolute;
     top: 0;
-    left: -16px;
-    width: 28px;
+    left: -34px;
+    width: 46px;
     height: 100%;
     z-index: 20;
     cursor: grab;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
-    padding-left: 6px;
+    justify-content: flex-end;
+    padding-right: 18px;
+    box-sizing: border-box;
   }
 
   .cm-edge-handle::after {
@@ -103,7 +110,12 @@ export const styles = /*css*/ `
     background: rgba(148, 163, 184, 0.35);
     backdrop-filter: blur(8px);
     box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.3);
-    transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    transition:
+      width 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      height 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      background-color 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.3s ease;
   }
 
   .cm-edge-handle:hover::after {
@@ -120,9 +132,9 @@ export const styles = /*css*/ `
   }
 
   .cm-edge-handle:active::after {
-    transform: scaleY(0.958);
+    transform: scaleY(0.96);
     background: rgba(148, 163, 184, 0.68);
-    transition-duration: 0.12s;
+    transition-duration: 0.18s;
   }
 
   .cm-header {
@@ -155,7 +167,7 @@ export const styles = /*css*/ `
     height: 65%;
     display: flex;
     flex-direction: column;
-    background: rgba(255, 255, 255, 0.025);
+    background: rgba(255, 255, 255, 0.02);
     overflow: hidden;
     flex-shrink: 0;
   }
@@ -195,20 +207,6 @@ export const styles = /*css*/ `
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.16);
     color: #F8FAFC;
-  }
-
-  .cm-note-content {
-    flex: 1;
-    margin-right: 22px;
-    padding-block: 6px 14px;
-    padding-inline: 20px 8px;
-    overflow-y: auto;
-    font-family: var(--cm-font);
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--cm-text-primary);
-    outline: none;
-    white-space: pre-wrap;
   }
 
   .cm-resizer {
@@ -333,7 +331,7 @@ export const styles = /*css*/ `
     border-radius: 5px;
     background: rgba(255, 255, 255, 0.07);
     border: 1px solid rgba(255, 255, 255, 0.06);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-family: var(--cm-mono);
     font-size: 12px;
     color: #E2E8F0;
   }
@@ -435,33 +433,39 @@ export const styles = /*css*/ `
 
   .cm-input,
   .cm-body,
-  .cm-note-content {
+  .cm-note-content,
+  .cm-code-wrap pre {
     scrollbar-width: auto;
     scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
   }
 
   .cm-input::-webkit-scrollbar,
   .cm-body::-webkit-scrollbar,
-  .cm-note-content::-webkit-scrollbar {
+  .cm-note-content::-webkit-scrollbar,
+  .cm-code-wrap pre::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
   }
 
   .cm-input::-webkit-scrollbar-track,
   .cm-body::-webkit-scrollbar-track,
-  .cm-note-content::-webkit-scrollbar-track {
+  .cm-note-content::-webkit-scrollbar-track,
+  .cm-code-wrap pre::-webkit-scrollbar-track {
     background: transparent;
   }
 
   .cm-input::-webkit-scrollbar-thumb,
   .cm-body::-webkit-scrollbar-thumb,
-  .cm-note-content::-webkit-scrollbar-thumb {
+  .cm-note-content::-webkit-scrollbar-thumb,
+  .cm-code-wrap pre::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.24);
     border-radius: 99px;
   }
 
   .cm-input::-webkit-scrollbar-thumb:hover,
   .cm-body::-webkit-scrollbar-thumb:hover,
-  .cm-note-content::-webkit-scrollbar-thumb:hover {
+  .cm-note-content::-webkit-scrollbar-thumb:hover,
+  .cm-code-wrap pre::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.42);
   }
 `;
