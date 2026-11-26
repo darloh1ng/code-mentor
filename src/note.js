@@ -1,13 +1,8 @@
-import { Marked } from './vendor/marked.esm.js';
+const escapeHtml = (str) =>
+  str.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
-const marked = new Marked({
-  breaks: true,
-  gfm: true,
-});
-
-const colorizeJs = (codeEl) => {
-  const html = codeEl.innerHTML;
-  codeEl.innerHTML = html.replace(
+const colorizeJs = (code) =>
+  escapeHtml(code).replace(
     /(\/\/[^\n]*)|('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`)|\b(const|let|var|function|return|if|else|for|while|in|of|new|delete|typeof|true|false|null|undefined)\b|\b(\d+)\b/g,
     (m, com, str, kw, num) => {
       if (com) return '<span style="color:#64748B;font-style:italic">' + com + '</span>';
@@ -17,60 +12,69 @@ const colorizeJs = (codeEl) => {
       return m;
     }
   );
+
+const formatInline = (text) => {
+  const slots = [];
+  const safe = text.replace(/`([^`]+)`/g, (_, code) => {
+    const idx = slots.length;
+    slots.push('<code>' + escapeHtml(code) + '</code>');
+    return '\u0000C' + idx + '\u0000';
+  });
+
+  let out = escapeHtml(safe)
+    .replace(/\[\[([^\]]+)\]\]/g, '<span class="cm-wiki-link">\$1</span>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>\$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>\$1</em>');
+
+  slots.forEach((html, idx) => {
+    out = out.replace('\u0000C' + idx + '\u0000', html);
+  });
+  return out;
 };
 
-const renderObsidianBlock = (md) => {
-  if (!md.trim()) return '<div class="cm-lp-blank"></div>';
-  const container = document.createElement('div');
-  container.innerHTML = marked.parse(md);
+const renderBlock = (md) => {
+  const trimmed = md.trim();
+  if (!trimmed) return '<div class="cm-lp-blank"></div>';
 
-  container.querySelectorAll('pre').forEach((pre) => {
-    const codeEl = pre.querySelector('code');
-    const langClass = codeEl ? Array.from(codeEl.classList).find((c) => c.startsWith('language-')) : '';
-    const lang = langClass ? langClass.replace('language-', '') : '';
-    if (codeEl && (lang === 'js' || lang === 'javascript')) {
-      colorizeJs(codeEl);
+  if (trimmed.startsWith('```')) {
+    const lines = md.split('\n');
+    const lang = lines.at(0).trim().slice(3).trim();
+    const bodyLines = lines.slice(1);
+    if (bodyLines.length > 0 && bodyLines.at(-1).trim().startsWith('```')) {
+      bodyLines.pop();
     }
+    const code = bodyLines.join('\n');
+    const highlighted = lang === 'js' || lang === 'javascript' ? colorizeJs(code) : escapeHtml(code);
+    const badge = lang ? '<span class="cm-code-lang">' + escapeHtml(lang) + '</span>' : '';
+    return '<div class="cm-code-wrap">' + badge + '<pre><code>' + highlighted + '</code></pre></div>';
+  }
 
-    const wrap = document.createElement('div');
-    wrap.className = 'cm-code-wrap';
-    if (lang) {
-      const badge = document.createElement('span');
-      badge.className = 'cm-code-lang';
-      badge.textContent = lang;
-      wrap.appendChild(badge);
+  if (trimmed.startsWith('>')) {
+    const lines = md.split('\n').map((l) => l.trim().replace(/^>\s?/, ''));
+    const first = lines.at(0) || '';
+    const calloutMatch = first.match(/^\[!([a-zA-Z0-9_-]+)\]\s*(.*)/);
+    if (calloutMatch) {
+      const type = calloutMatch.at(1) || 'tip';
+      const title = (calloutMatch.at(2) || '').trim() || type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+      const items = lines.slice(1).filter(Boolean).map((l) => '<li>' + formatInline(l.replace(/^[-*]\s+/, '')) + '</li>').join('');
+      return '<div class="cm-callout"><div class="cm-callout-title">💡 ' + escapeHtml(title) + '</div><ul>' + items + '</ul></div>';
     }
-    pre.parentNode.insertBefore(wrap, pre);
-    wrap.appendChild(pre);
-  });
+    return '<blockquote>' + lines.map(formatInline).join('<br>') + '</blockquote>';
+  }
 
-  container.querySelectorAll('blockquote').forEach((bq) => {
-    const firstP = bq.querySelector('p');
-    if (!firstP) return;
-    const text = firstP.textContent.trim();
-    const match = text.match(/^\[!([a-zA-Z0-9_-]+)\]\s*(.*)/);
-    if (!match) return;
+  if (trimmed === '---' || trimmed === '***') return '<hr>';
 
-    const type = match.at(1) || 'tip';
-    const customTitle = (match.at(2) || '').trim();
-    const title = customTitle || type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+  const heading = trimmed.match(/^(#{1,6})\s+(.*)/);
+  if (heading) {
+    const level = heading.at(1).length;
+    return '<h' + level + '>' + formatInline(heading.at(2)) + '</h' + level + '>';
+  }
 
-    const callout = document.createElement('div');
-    callout.className = 'cm-callout';
+  if (/^[-*]\s+/.test(trimmed)) {
+    return '<ul><li>' + formatInline(trimmed.replace(/^[-*]\s+/, '')) + '</li></ul>';
+  }
 
-    const titleEl = document.createElement('div');
-    titleEl.className = 'cm-callout-title';
-    titleEl.textContent = '💡 ' + title;
-    callout.appendChild(titleEl);
-
-    firstP.remove();
-    while (bq.firstChild) {
-      callout.appendChild(bq.firstChild);
-    }
-    bq.replaceWith(callout);
-  });
-
-  return container.innerHTML.replace(/\[\[([^\]]+)\]\]/g, '<span class="cm-wiki-link">$1</span>');
+  return '<p>' + formatInline(trimmed) + '</p>';
 };
 
 const splitIntoBlocks = (md) => {
@@ -182,27 +186,16 @@ export const createObsidianNote = (noteContent, initialMarkdown = '') => {
             return;
           }
 
-          const isMultilineBlock = blockMd.trim().startsWith('```') || blockMd.trim().startsWith('>');
+          const isMultiline = blockMd.trim().startsWith('```') || blockMd.trim().startsWith('>');
 
-          if (e.key === 'Enter' && !e.shiftKey && !isMultilineBlock) {
+          if (e.key === 'Enter' && !e.shiftKey && !isMultiline) {
             e.preventDefault();
             const pos = editor.selectionStart || 0;
             const before = editor.value.slice(0, pos);
             const after = editor.value.slice(pos);
-
-            const emptyListMatch = before.match(/^(\s*[-*]\s+)$/);
-            if (emptyListMatch && !after.trim()) {
-              blocks[idx] = '';
-              syncRaw();
-              render(idx, 0);
-              return;
-            }
-
-            const listMatch = before.match(/^(\s*[-*]\s+)/);
-            const nextPrefix = listMatch ? listMatch.at(1) : '';
-            blocks.splice(idx, 1, before, nextPrefix + after);
+            blocks.splice(idx, 1, before, after);
             syncRaw();
-            render(idx + 1, nextPrefix.length);
+            render(idx + 1, 0);
             return;
           }
 
@@ -216,24 +209,6 @@ export const createObsidianNote = (noteContent, initialMarkdown = '') => {
               const prevIdx = Math.max(0, idx - 1);
               render(prevIdx, blocks.at(prevIdx).length);
             }
-            return;
-          }
-
-          if (e.key === 'ArrowUp' && editor.selectionStart === 0 && idx > 0) {
-            e.preventDefault();
-            blocks = splitIntoBlocks(blocks.join('\n'));
-            syncRaw();
-            const prevIdx = Math.min(idx - 1, blocks.length - 1);
-            render(prevIdx, blocks.at(prevIdx).length);
-            return;
-          }
-
-          if (e.key === 'ArrowDown' && editor.selectionEnd === editor.value.length && idx < blocks.length - 1) {
-            e.preventDefault();
-            blocks = splitIntoBlocks(blocks.join('\n'));
-            syncRaw();
-            const nextIdx = Math.min(idx + 1, blocks.length - 1);
-            render(nextIdx, 0);
           }
         });
 
@@ -245,7 +220,7 @@ export const createObsidianNote = (noteContent, initialMarkdown = '') => {
           }, 0);
         });
       } else {
-        row.innerHTML = renderObsidianBlock(blockMd);
+        row.innerHTML = renderBlock(blockMd);
         row.addEventListener('click', (e) => {
           const sel = window.getSelection();
           if (sel && sel.toString().length > 0) return;
